@@ -67,6 +67,13 @@ const _kHorizontalRowRoundUpThreshold = 1.7;
 /// Stops a very tall window shrinking cards into unreadable thumbnails.
 const _kMaxHorizontalRows = 8;
 
+/// The clearance [_scrollToGridRow] keeps between a focused row's bottom and
+/// the viewport edge, so the row's labels and the focus ring stay clear of
+/// whatever sits under the grid. The vertical grids' trailing padding has to
+/// reserve at least this much, or the scroll can never reveal its last row
+/// and a stalled boundary row sits with its labels eaten off the bottom.
+const _kFocusedRowBottomClearance = 52.0;
+
 const _kChevronScrollStep = 480.0;
 
 /// Row height of the songs list, which the letter jump multiplies out because
@@ -300,7 +307,7 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
     final viewportH = position.viewportDimension;
     final current = position.pixels;
     final topPad = geometry.leadingPad;
-    const bottomPad = 52.0;
+    const bottomPad = _kFocusedRowBottomClearance;
     double target = current;
     if (rowTop - topPad < current) {
       target = rowTop - topPad;
@@ -1273,7 +1280,15 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
 
             slivers.add(
               SliverPadding(
-                padding: EdgeInsets.fromLTRB(gridPadding, topPadding, gridPadding, 16),
+                // Bottom clearance matching _scrollToGridRow's margin, so
+                // the last row of the last section can scroll fully into
+                // view.
+                padding: EdgeInsets.fromLTRB(
+                  gridPadding,
+                  topPadding,
+                  gridPadding,
+                  math.max(_kFocusedRowBottomClearance, upwardGrowth),
+                ),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
@@ -1371,7 +1386,11 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
                 gridPadding,
                 topPadding,
                 gridPadding,
-                math.max(16.0, upwardGrowth),
+                // At least the clearance _scrollToGridRow demands below a
+                // row, or the grid can never scroll its last row fully into
+                // view and the frozen boundary row sits with its labels
+                // eaten off the bottom edge.
+                math.max(_kFocusedRowBottomClearance, upwardGrowth),
               ),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

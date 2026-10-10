@@ -15,13 +15,15 @@ void main() {
   const gridPadding = 48.0;
   const crossSpacing = 12.0;
 
-  /// Lays out the grid the way _buildVerticalGrid does for a card of
-  /// [cellHeight] under [focusScale], then checks every row in [rows] renders
-  /// where gridLineStart says it will.
+  /// Lays out the grid the way _buildVerticalGrid does for a card whose
+  /// artwork is [imageHeight] tall (plus a [labelHeight] line under it) under
+  /// [focusScale], then checks every row in [rows] renders where
+  /// gridLineStart says it will.
   Future<void> expectNoDrift(
     WidgetTester tester, {
     required double focusScale,
-    required double cellHeight,
+    required double imageHeight,
+    required double labelHeight,
     required int crossAxisCount,
     required List<int> rows,
   }) async {
@@ -29,13 +31,19 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final overhang = math.max(0.0, cellHeight * (focusScale - 1) / 2);
+    // The screen's own sums, from _buildVerticalGrid: the focused artwork
+    // grows up from its bottomCenter anchor, so the growth is reserved ahead
+    // of the grid and between rows, and the grid's trailing padding keeps
+    // _scrollToGridRow's clearance (52px) available past the last row.
+    final cellHeight = imageHeight + labelHeight;
+    final upwardGrowth = imageHeight * (focusScale - 1);
     final GridGeometry geometry = (
       perLine: crossAxisCount,
       lineExtent: cellHeight,
-      lineSpacing: math.max(8.0, overhang),
-      leadingPad: 8.0 + overhang,
+      lineSpacing: 16.0 + upwardGrowth,
+      leadingPad: 18.0 + upwardGrowth,
     );
+    final bottomPad = math.max(52.0, upwardGrowth);
     final cellWidth =
         (viewport.width -
             gridPadding * 2 -
@@ -62,7 +70,7 @@ void main() {
                 gridPadding,
                 geometry.leadingPad,
                 gridPadding,
-                16,
+                bottomPad,
               ),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -114,7 +122,8 @@ void main() {
       await expectNoDrift(
         tester,
         focusScale: 1.12,
-        cellHeight: 282.0,
+        imageHeight: 256.0,
+        labelHeight: 26.0,
         crossAxisCount: 5,
         rows: const [0, 1, 10, 30, 100, 200],
       );
@@ -124,7 +133,8 @@ void main() {
       await expectNoDrift(
         tester,
         focusScale: 1.05,
-        cellHeight: 282.0,
+        imageHeight: 256.0,
+        labelHeight: 26.0,
         crossAxisCount: 6,
         rows: const [0, 1, 10, 50, 200],
       );
@@ -134,7 +144,8 @@ void main() {
       await expectNoDrift(
         tester,
         focusScale: 1.05,
-        cellHeight: 360.0,
+        imageHeight: 310.0,
+        labelHeight: 50.0,
         crossAxisCount: 6,
         rows: const [0, 10, 100, 200],
       );
@@ -144,7 +155,8 @@ void main() {
       await expectNoDrift(
         tester,
         focusScale: 1.12,
-        cellHeight: 180.0,
+        imageHeight: 154.0,
+        labelHeight: 26.0,
         crossAxisCount: 2,
         rows: const [0, 5, 60, 200],
       );
@@ -154,7 +166,8 @@ void main() {
       await expectNoDrift(
         tester,
         focusScale: MediaCard.focusScale,
-        cellHeight: 282.0,
+        imageHeight: 256.0,
+        labelHeight: 26.0,
         crossAxisCount: 5,
         rows: const [0, 1, 40, 150],
       );
@@ -162,17 +175,18 @@ void main() {
   });
 
   test('gridLineStart holds a line together and steps a whole pitch', () {
+    // From the television sums: 18.0 leading plus 12% of a 256px artwork.
     const GridGeometry geometry = (
       perLine: 5,
       lineExtent: 282.0,
-      lineSpacing: 16.92,
-      leadingPad: 24.92,
+      lineSpacing: 46.72,
+      leadingPad: 48.72,
     );
-    const pitch = 282.0 + 16.92;
+    const pitch = 282.0 + 46.72;
 
-    expect(gridLineStart(geometry, 0), closeTo(24.92, 0.001));
-    expect(gridLineStart(geometry, 4), closeTo(24.92, 0.001));
-    expect(gridLineStart(geometry, 5), closeTo(24.92 + pitch, 0.001));
-    expect(gridLineStart(geometry, 500), closeTo(24.92 + 100 * pitch, 0.001));
+    expect(gridLineStart(geometry, 0), closeTo(48.72, 0.001));
+    expect(gridLineStart(geometry, 4), closeTo(48.72, 0.001));
+    expect(gridLineStart(geometry, 5), closeTo(48.72 + pitch, 0.001));
+    expect(gridLineStart(geometry, 500), closeTo(48.72 + 100 * pitch, 0.001));
   });
 }

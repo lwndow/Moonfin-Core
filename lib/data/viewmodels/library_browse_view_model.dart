@@ -134,6 +134,14 @@ class LibraryBrowseViewModel extends ChangeNotifier {
   bool _totalCountKnown = true;
   bool _hasMoreFromPageSize = false;
 
+  /// Pages in a row the server answered with nothing new, tracked so a
+  /// stream the client can never finish (tied sort names reordering between
+  /// windows re-deliver rows it already has) is declared exhausted instead
+  /// of being asked forever. One empty page is a reshuffle by chance and
+  /// stays retryable; the latch only closes after several in a row.
+  int _consecutiveEmptyDeliveries = 0;
+  static const _maxConsecutiveEmptyDeliveries = 3;
+
   bool get hasMore =>
       _totalCountKnown ? _items.length < _totalCount : _hasMoreFromPageSize;
 
@@ -547,6 +555,7 @@ class LibraryBrowseViewModel extends ChangeNotifier {
     _totalCount = 0;
     _filteredOutCount = 0;
     _fetchedCount = 0;
+    _consecutiveEmptyDeliveries = 0;
     _renderedItemIds.clear();
     _playlistCategoryMap.clear();
     _totalCountKnown = true;
@@ -680,6 +689,7 @@ class LibraryBrowseViewModel extends ChangeNotifier {
     if (notify) notifyListeners();
 
     final previouslyFetched = _fetchedCount;
+    final beforeLength = _items.length;
     try {
       await _fetchPage(_fetchedCount, pageSizeOverride: pageSizeOverride);
       // Stop on a page the server had nothing left for, not on one that only
@@ -687,6 +697,19 @@ class LibraryBrowseViewModel extends ChangeNotifier {
       if (_fetchedCount <= previouslyFetched) {
         _totalCount = _items.length;
         _hasMoreFromPageSize = false;
+      } else if (_items.length == beforeLength) {
+        // The server answered but every row was already on screen. Several
+        // of these in a row is a stream the deduped client can never finish
+        // — sort ties reorder between windows and the same rows come back —
+        // so the walk keeps asking while the browse grid's D-pad edge pager
+        // eats every Down press on the last loaded row. Declare it done.
+        _consecutiveEmptyDeliveries++;
+        if (_consecutiveEmptyDeliveries >= _maxConsecutiveEmptyDeliveries) {
+          _totalCount = _items.length;
+          _hasMoreFromPageSize = false;
+        }
+      } else {
+        _consecutiveEmptyDeliveries = 0;
       }
     } catch (_) {}
 

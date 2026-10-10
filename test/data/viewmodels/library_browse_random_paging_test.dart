@@ -224,4 +224,42 @@ void main() {
 
     expect(vm.hasMore, isFalse);
   });
+
+  test('a server that keeps repeating already-shown rows is eventually '
+      'declared done', () async {
+    // Sort ties reorder between requests, so every window re-delivers rows
+    // the client has already shown while TotalRecordCount still promises
+    // more. The browse must stop asking after a few such pages, or its
+    // D-pad edge pager eats every Down press on the last loaded row
+    // forever — the grid freezes mid-library.
+    final api = _FakeItemsApi(
+      [
+        [1, 2, 3, 4],
+        // Every page from here on repeats what is already on screen.
+        [2, 3, 4],
+        [1, 2, 4],
+        [3, 4, 1],
+        [4, 2, 3],
+      ],
+      totalRecordCount: 10,
+    );
+    final vm = await _viewModel(api);
+    addTearDown(vm.dispose);
+
+    await vm.load();
+    // Three consecutive pages that delivered nothing new latch the stream
+    // done, so a fourth asking round can't happen.
+    await vm.loadMore();
+    await vm.loadMore();
+    await vm.loadMore();
+
+    expect(vm.hasMore, isFalse, reason: 'the repeat stream never latched');
+    expect(api.requestedStartIndexes.length, lessThanOrEqualTo(4));
+    expect(_ids(vm), <String>[
+      'item-1',
+      'item-2',
+      'item-3',
+      'item-4',
+    ]);
+  });
 }
